@@ -5,7 +5,7 @@ import React, {
   createContext,
   useContext,
 } from "react";
-import io from "socketRef.current.io-client";
+import io from "socket.io-client";
 import {
   Mic,
   Monitor,
