@@ -30,14 +30,17 @@ import {
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════
-// CONFIG - Auto-detect backend URL
+// CONFIG - backend URL
 // ═══════════════════════════════════════════════════════════════
 
-const BACKEND = import.meta.env.VITE_BACKEND_URL;
+const BACKEND =
+  (import.meta.env.VITE_BACKEND_URL || "").replace(/\/$/, "") ||
+  "http://localhost:3001";
 
-// const socketRef = useRef(null);
-
-const socketRef = { current: null };
+const socket = io(BACKEND, {
+  transports: ["websocket", "polling"],
+  reconnection: true,
+});
 
 const RTC_CONFIG = {
   iceServers: [
@@ -206,7 +209,9 @@ const Status = ({ connected }) => (
     }`}
   >
     <div
-      className={`w-2 h-2 rounded-full ${connected ? "bg-green-500 animate-pulse" : "bg-red-500"}`}
+      className={`w-2 h-2 rounded-full ${
+        connected ? "bg-green-500 animate-pulse" : "bg-red-500"
+      }`}
     />
     {connected ? "ONLINE" : "OFFLINE"}
   </div>
@@ -245,21 +250,19 @@ function HostDashboard({ room, onEnd }) {
   const pcRef = useRef(null);
 
   useEffect(() => {
-    socketRef.current.on("followup_signal", ({ speakerName }) =>
-      setFollowUp(speakerName),
-    );
+    socket.on("followup_signal", ({ speakerName }) => setFollowUp(speakerName));
 
-    socketRef.current.on("reaction_received", (emoji) => {
+    socket.on("reaction_received", (emoji) => {
       const id = Date.now();
       setReactions((r) => [...r, { id, emoji, left: Math.random() * 80 + 10 }]);
       setTimeout(() => setReactions((r) => r.filter((x) => x.id !== id)), 3000);
     });
 
-    socketRef.current.on("transcript_update", (entry) =>
+    socket.on("transcript_update", (entry) =>
       setTranscript((t) => [...t.slice(-29), entry]),
     );
 
-    socketRef.current.on("webrtc_offer", async ({ from, offer }) => {
+    socket.on("webrtc_offer", async ({ from, offer }) => {
       try {
         pcRef.current?.close();
       } catch {}
@@ -277,21 +280,18 @@ function HostDashboard({ room, onEnd }) {
 
       pc.onicecandidate = (e) => {
         if (e.candidate)
-          socketRef.current.emit("webrtc_ice", {
-            to: from,
-            candidate: e.candidate,
-          });
+          socket.emit("webrtc_ice", { to: from, candidate: e.candidate });
       };
 
       try {
         await pc.setRemoteDescription(offer);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        socketRef.current.emit("webrtc_answer", { to: from, answer });
+        socket.emit("webrtc_answer", { to: from, answer });
       } catch {}
     });
 
-    socketRef.current.on("webrtc_ice", async ({ candidate }) => {
+    socket.on("webrtc_ice", async ({ candidate }) => {
       if (!pcRef.current || !candidate) return;
       try {
         if (!pcRef.current.remoteDescription) return;
@@ -306,7 +306,7 @@ function HostDashboard({ room, onEnd }) {
         "transcript_update",
         "webrtc_offer",
         "webrtc_ice",
-      ].forEach((e) => socketRef.current.off(e));
+      ].forEach((e) => socket.off(e));
       try {
         pcRef.current?.close();
       } catch {}
@@ -321,12 +321,12 @@ function HostDashboard({ room, onEnd }) {
 
   const grantFloor = (userId) => {
     if (!room.currentSpeaker)
-      socketRef.current.emit("grant_floor", { roomId: room.id, userId });
+      socket.emit("grant_floor", { roomId: room.id, userId });
   };
 
   const endEvent = () => {
     if (confirm("End event?")) {
-      socketRef.current.emit("end_event", room.id);
+      socket.emit("end_event", room.id);
       onEnd();
     }
   };
@@ -363,7 +363,7 @@ function HostDashboard({ room, onEnd }) {
               <Button
                 variant="danger"
                 onClick={() => {
-                  socketRef.current.emit("followup_response", {
+                  socket.emit("followup_response", {
                     roomId: room.id,
                     approved: false,
                   });
@@ -375,7 +375,7 @@ function HostDashboard({ room, onEnd }) {
               </Button>
               <Button
                 onClick={() => {
-                  socketRef.current.emit("followup_response", {
+                  socket.emit("followup_response", {
                     roomId: room.id,
                     approved: true,
                   });
@@ -421,7 +421,7 @@ function HostDashboard({ room, onEnd }) {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => socketRef.current.emit("end_speech", room.id)}
+              onClick={() => socket.emit("end_speech", room.id)}
             >
               <Square size={16} />
             </Button>
@@ -541,10 +541,9 @@ function AttendeeView({ room, user, onExit }) {
   const pcRef = useRef(null);
   const streamRef = useRef(null);
 
-  const inQueue = room.queue?.some((q) => q.id === socketRef.current.id);
-  const queuePos =
-    room.queue?.findIndex((q) => q.id === socketRef.current.id) + 1;
-  const isSpeaking = room.currentSpeaker?.id === socketRef.current.id;
+  const inQueue = room.queue?.some((q) => q.id === socket.id);
+  const queuePos = room.queue?.findIndex((q) => q.id === socket.id) + 1;
+  const isSpeaking = room.currentSpeaker?.id === socket.id;
 
   const stopWebRTC = () => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -567,7 +566,7 @@ function AttendeeView({ room, user, onExit }) {
 
       pc.onicecandidate = (e) => {
         if (e.candidate) {
-          socketRef.current.emit("webrtc_ice", {
+          socket.emit("webrtc_ice", {
             roomId: room.id,
             candidate: e.candidate,
           });
@@ -577,35 +576,33 @@ function AttendeeView({ room, user, onExit }) {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      socketRef.current.emit("webrtc_offer", { roomId: room.id, offer });
+      socket.emit("webrtc_offer", { roomId: room.id, offer });
     } catch (e) {
       alert("Microphone required");
     }
   };
 
   useEffect(() => {
-    socketRef.current.on("floor_granted", startWebRTC);
+    socket.on("floor_granted", startWebRTC);
 
-    socketRef.current.on("followup_approved", () =>
-      setFollowUpStatus("approved"),
-    );
-    socketRef.current.on("followup_declined", () => {
+    socket.on("followup_approved", () => setFollowUpStatus("approved"));
+    socket.on("followup_declined", () => {
       setFollowUpStatus("declined");
       setTimeout(() => setFollowUpStatus(null), 3000);
     });
 
-    socketRef.current.on("transcript_update", (entry) =>
+    socket.on("transcript_update", (entry) =>
       setTranscript((t) => [...t.slice(-29), entry]),
     );
 
-    socketRef.current.on("webrtc_answer", async ({ answer }) => {
+    socket.on("webrtc_answer", async ({ answer }) => {
       if (!pcRef.current) return;
       try {
         await pcRef.current.setRemoteDescription(answer);
       } catch {}
     });
 
-    socketRef.current.on("webrtc_ice", async ({ candidate }) => {
+    socket.on("webrtc_ice", async ({ candidate }) => {
       if (!pcRef.current || !candidate) return;
       try {
         if (!pcRef.current.remoteDescription) return;
@@ -621,14 +618,14 @@ function AttendeeView({ room, user, onExit }) {
         "transcript_update",
         "webrtc_answer",
         "webrtc_ice",
-      ].forEach((e) => socketRef.current.off(e));
+      ].forEach((e) => socket.off(e));
       stopWebRTC();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id]);
 
   const endTurn = () => {
-    socketRef.current.emit("end_speech", room.id);
+    socket.emit("end_speech", room.id);
     stopWebRTC();
   };
 
@@ -663,7 +660,7 @@ function AttendeeView({ room, user, onExit }) {
               variant="secondary"
               size="lg"
               onClick={() => {
-                socketRef.current.emit("signal_followup", room.id);
+                socket.emit("signal_followup", room.id);
                 setFollowUpStatus("pending");
               }}
               className="w-full bg-yellow-500 text-black hover:bg-yellow-400"
@@ -724,7 +721,7 @@ function AttendeeView({ room, user, onExit }) {
               <Button
                 size="sm"
                 onClick={() => {
-                  socketRef.current.emit("submit_question", {
+                  socket.emit("submit_question", {
                     roomId: room.id,
                     text: questionText,
                   });
@@ -738,7 +735,7 @@ function AttendeeView({ room, user, onExit }) {
 
             <Button
               variant="ghost"
-              onClick={() => socketRef.current.emit("leave_queue", room.id)}
+              onClick={() => socket.emit("leave_queue", room.id)}
             >
               Leave Queue
             </Button>
@@ -755,7 +752,7 @@ function AttendeeView({ room, user, onExit }) {
             <Button
               size="lg"
               onClick={() =>
-                socketRef.current.emit("join_queue", { roomId: room.id, user })
+                socket.emit("join_queue", { roomId: room.id, user })
               }
               className="w-full mb-8 py-6"
             >
@@ -769,7 +766,7 @@ function AttendeeView({ room, user, onExit }) {
                   <button
                     key={e}
                     onClick={() =>
-                      socketRef.current.emit("send_reaction", {
+                      socket.emit("send_reaction", {
                         roomId: room.id,
                         emoji: e,
                       })
@@ -1153,88 +1150,55 @@ function JoinPage({ onBack, onJoin, connected }) {
 // ═══════════════════════════════════════════════════════════════
 
 function App() {
-  useEffect(() => {
-    if (!socketRef.current) {
-      socketRef.current = io(import.meta.env.VITE_BACKEND_URL, {
-        transports: ["websocket"],
-        secure: true,
-      });
-    }
-    return () => {
-      socketRef.current?.disconnect();
-      socketRef.current = null;
-    };
-  }, []);
-
   const [view, setView] = useState("landing");
   const [room, setRoom] = useState(null);
   const [attendeeUser, setAttendeeUser] = useState({ name: "" });
-  // const [connected, setConnected] = useState(false);
-
-  const [connected, setConnected] = useState(false);
+  const [connected, setConnected] = useState(socket.connected);
 
   useEffect(() => {
-    const s = socketRef.current;
-    if (!s) return;
-
-    setConnected(s.connected);
-
     const onConnect = () => setConnected(true);
     const onDisconnect = () => setConnected(false);
 
-    s.on("connect", onConnect);
-    s.on("disconnect", onDisconnect);
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
 
-    return () => {
-      s.off("connect", onConnect);
-      s.off("disconnect", onDisconnect);
-    };
-  }, []);
-
-  /* useEffect(() => {
-    socketRef.current.on("connect", () => setConnected(true));
-    socketRef.current.on("disconnect", () => setConnected(false));
-
-    socketRef.current.on("event_created", (r) => {
+    socket.on("event_created", (r) => {
       setRoom(r);
       setView("host");
     });
 
-    socketRef.current.on("room_data", setRoom);
+    socket.on("room_data", setRoom);
 
-    socketRef.current.on("event_ended", () => {
+    socket.on("event_ended", () => {
       alert("Event ended");
       setView("landing");
       setRoom(null);
     });
 
-    socketRef.current.on("error", alert);
+    socket.on("error", alert);
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("room")) setView("join");
 
     return () => {
-      socketRef.current.off("connect");
-      socketRef.current.off("disconnect");
-      socketRef.current.off("event_created");
-      socketRef.current.off("room_data");
-      socketRef.current.off("event_ended");
-      socketRef.current.off("error");
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("event_created");
+      socket.off("room_data");
+      socket.off("event_ended");
+      socket.off("error");
     };
-  }, []);*/
+  }, []);
 
   const createEvent = (data) => {
-    if (connected) socketRef.current.emit("create_event", data);
+    if (connected) socket.emit("create_event", data);
     else alert("Not connected");
   };
 
   const joinEvent = (code, user) => {
     if (!connected) return alert("Not connected");
     setAttendeeUser(user);
-    socketRef.current.emit("join_room_attendee", {
-      roomId: code.toUpperCase(),
-      user,
-    });
+    socket.emit("join_room_attendee", { roomId: code.toUpperCase(), user });
     setView("attendee");
   };
 
