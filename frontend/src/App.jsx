@@ -1169,9 +1169,29 @@ function App() {
   const [view, setView] = useState("landing");
   const [room, setRoom] = useState(null);
   const [attendeeUser, setAttendeeUser] = useState({ name: "" });
+  // const [connected, setConnected] = useState(false);
+
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
+    const s = socketRef.current;
+    if (!s) return;
+
+    setConnected(s.connected);
+
+    const onConnect = () => setConnected(true);
+    const onDisconnect = () => setConnected(false);
+
+    s.on("connect", onConnect);
+    s.on("disconnect", onDisconnect);
+
+    return () => {
+      s.off("connect", onConnect);
+      s.off("disconnect", onDisconnect);
+    };
+  }, []);
+
+  /* useEffect(() => {
     socketRef.current.on("connect", () => setConnected(true));
     socketRef.current.on("disconnect", () => setConnected(false));
 
@@ -1201,7 +1221,7 @@ function App() {
       socketRef.current.off("event_ended");
       socketRef.current.off("error");
     };
-  }, []);
+  }, []);*/
 
   const createEvent = (data) => {
     if (connected) socketRef.current.emit("create_event", data);
