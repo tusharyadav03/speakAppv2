@@ -1155,9 +1155,9 @@ function JoinPage({ onBack, onJoin, connected }) {
 function App() {
   useEffect(() => {
     if (!socketRef.current) {
-      socketRef.current = io(BACKEND, {
-        transports: ["websocket", "polling"],
-        reconnection: true,
+      socketRef.current = io(import.meta.env.VITE_BACKEND_URL, {
+        transports: ["websocket"],
+        secure: true,
       });
     }
     return () => {

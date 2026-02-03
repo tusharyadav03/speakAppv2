@@ -110,6 +110,7 @@ const corsOptions = {
 
 const io = new Server(server, {
   cors: corsOptions,
+  origin: "https://speakappv2.onrender.com",
   transports: ['websocket', 'polling'],
 });
 
