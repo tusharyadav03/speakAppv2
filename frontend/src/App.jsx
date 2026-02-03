@@ -35,7 +35,7 @@ import {
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL;
 
-const socketRef = useRef(null);
+// const socketRef = useRef(null);
 
 useEffect(() => {
   socketRef.current = io(import.meta.env.VITE_BACKEND_URL, {
