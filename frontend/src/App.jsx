@@ -5,7 +5,7 @@ import React, {
   createContext,
   useContext,
 } from "react";
-import io from "socket.io-client";
+import io from "socketRef.current.io-client";
 import {
   Mic,
   Monitor,
@@ -35,10 +35,18 @@ import {
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL;
 
-const socket = io(BACKEND, {
-  transports: ["websocket", "polling"],
-  reconnection: true,
-});
+const socketRef = useRef(null);
+
+useEffect(() => {
+  socketRef.current = io(import.meta.env.VITE_BACKEND_URL, {
+    transports: ["websocket"],
+    reconnection: true,
+  });
+
+  return () => {
+    socketRef.current?.disconnect();
+  };
+}, []);
 
 const RTC_CONFIG = {
   iceServers: [
@@ -246,19 +254,21 @@ function HostDashboard({ room, onEnd }) {
   const pcRef = useRef(null);
 
   useEffect(() => {
-    socket.on("followup_signal", ({ speakerName }) => setFollowUp(speakerName));
+    socketRef.current.on("followup_signal", ({ speakerName }) =>
+      setFollowUp(speakerName),
+    );
 
-    socket.on("reaction_received", (emoji) => {
+    socketRef.current.on("reaction_received", (emoji) => {
       const id = Date.now();
       setReactions((r) => [...r, { id, emoji, left: Math.random() * 80 + 10 }]);
       setTimeout(() => setReactions((r) => r.filter((x) => x.id !== id)), 3000);
     });
 
-    socket.on("transcript_update", (entry) =>
+    socketRef.current.on("transcript_update", (entry) =>
       setTranscript((t) => [...t.slice(-29), entry]),
     );
 
-    socket.on("webrtc_offer", async ({ from, offer }) => {
+    socketRef.current.on("webrtc_offer", async ({ from, offer }) => {
       try {
         pcRef.current?.close();
       } catch {}
@@ -276,18 +286,21 @@ function HostDashboard({ room, onEnd }) {
 
       pc.onicecandidate = (e) => {
         if (e.candidate)
-          socket.emit("webrtc_ice", { to: from, candidate: e.candidate });
+          socketRef.current.emit("webrtc_ice", {
+            to: from,
+            candidate: e.candidate,
+          });
       };
 
       try {
         await pc.setRemoteDescription(offer);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        socket.emit("webrtc_answer", { to: from, answer });
+        socketRef.current.emit("webrtc_answer", { to: from, answer });
       } catch {}
     });
 
-    socket.on("webrtc_ice", async ({ candidate }) => {
+    socketRef.current.on("webrtc_ice", async ({ candidate }) => {
       if (!pcRef.current || !candidate) return;
       try {
         if (!pcRef.current.remoteDescription) return;
@@ -302,7 +315,7 @@ function HostDashboard({ room, onEnd }) {
         "transcript_update",
         "webrtc_offer",
         "webrtc_ice",
-      ].forEach((e) => socket.off(e));
+      ].forEach((e) => socketRef.current.off(e));
       try {
         pcRef.current?.close();
       } catch {}
@@ -317,12 +330,12 @@ function HostDashboard({ room, onEnd }) {
 
   const grantFloor = (userId) => {
     if (!room.currentSpeaker)
-      socket.emit("grant_floor", { roomId: room.id, userId });
+      socketRef.current.emit("grant_floor", { roomId: room.id, userId });
   };
 
   const endEvent = () => {
     if (confirm("End event?")) {
-      socket.emit("end_event", room.id);
+      socketRef.current.emit("end_event", room.id);
       onEnd();
     }
   };
@@ -359,7 +372,7 @@ function HostDashboard({ room, onEnd }) {
               <Button
                 variant="danger"
                 onClick={() => {
-                  socket.emit("followup_response", {
+                  socketRef.current.emit("followup_response", {
                     roomId: room.id,
                     approved: false,
                   });
@@ -371,7 +384,7 @@ function HostDashboard({ room, onEnd }) {
               </Button>
               <Button
                 onClick={() => {
-                  socket.emit("followup_response", {
+                  socketRef.current.emit("followup_response", {
                     roomId: room.id,
                     approved: true,
                   });
@@ -417,7 +430,7 @@ function HostDashboard({ room, onEnd }) {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => socket.emit("end_speech", room.id)}
+              onClick={() => socketRef.current.emit("end_speech", room.id)}
             >
               <Square size={16} />
             </Button>
@@ -537,9 +550,10 @@ function AttendeeView({ room, user, onExit }) {
   const pcRef = useRef(null);
   const streamRef = useRef(null);
 
-  const inQueue = room.queue?.some((q) => q.id === socket.id);
-  const queuePos = room.queue?.findIndex((q) => q.id === socket.id) + 1;
-  const isSpeaking = room.currentSpeaker?.id === socket.id;
+  const inQueue = room.queue?.some((q) => q.id === socketRef.current.id);
+  const queuePos =
+    room.queue?.findIndex((q) => q.id === socketRef.current.id) + 1;
+  const isSpeaking = room.currentSpeaker?.id === socketRef.current.id;
 
   const stopWebRTC = () => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -562,7 +576,7 @@ function AttendeeView({ room, user, onExit }) {
 
       pc.onicecandidate = (e) => {
         if (e.candidate) {
-          socket.emit("webrtc_ice", {
+          socketRef.current.emit("webrtc_ice", {
             roomId: room.id,
             candidate: e.candidate,
           });
@@ -572,33 +586,35 @@ function AttendeeView({ room, user, onExit }) {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      socket.emit("webrtc_offer", { roomId: room.id, offer });
+      socketRef.current.emit("webrtc_offer", { roomId: room.id, offer });
     } catch (e) {
       alert("Microphone required");
     }
   };
 
   useEffect(() => {
-    socket.on("floor_granted", startWebRTC);
+    socketRef.current.on("floor_granted", startWebRTC);
 
-    socket.on("followup_approved", () => setFollowUpStatus("approved"));
-    socket.on("followup_declined", () => {
+    socketRef.current.on("followup_approved", () =>
+      setFollowUpStatus("approved"),
+    );
+    socketRef.current.on("followup_declined", () => {
       setFollowUpStatus("declined");
       setTimeout(() => setFollowUpStatus(null), 3000);
     });
 
-    socket.on("transcript_update", (entry) =>
+    socketRef.current.on("transcript_update", (entry) =>
       setTranscript((t) => [...t.slice(-29), entry]),
     );
 
-    socket.on("webrtc_answer", async ({ answer }) => {
+    socketRef.current.on("webrtc_answer", async ({ answer }) => {
       if (!pcRef.current) return;
       try {
         await pcRef.current.setRemoteDescription(answer);
       } catch {}
     });
 
-    socket.on("webrtc_ice", async ({ candidate }) => {
+    socketRef.current.on("webrtc_ice", async ({ candidate }) => {
       if (!pcRef.current || !candidate) return;
       try {
         if (!pcRef.current.remoteDescription) return;
@@ -614,14 +630,14 @@ function AttendeeView({ room, user, onExit }) {
         "transcript_update",
         "webrtc_answer",
         "webrtc_ice",
-      ].forEach((e) => socket.off(e));
+      ].forEach((e) => socketRef.current.off(e));
       stopWebRTC();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id]);
 
   const endTurn = () => {
-    socket.emit("end_speech", room.id);
+    socketRef.current.emit("end_speech", room.id);
     stopWebRTC();
   };
 
@@ -656,7 +672,7 @@ function AttendeeView({ room, user, onExit }) {
               variant="secondary"
               size="lg"
               onClick={() => {
-                socket.emit("signal_followup", room.id);
+                socketRef.current.emit("signal_followup", room.id);
                 setFollowUpStatus("pending");
               }}
               className="w-full bg-yellow-500 text-black hover:bg-yellow-400"
@@ -717,7 +733,7 @@ function AttendeeView({ room, user, onExit }) {
               <Button
                 size="sm"
                 onClick={() => {
-                  socket.emit("submit_question", {
+                  socketRef.current.emit("submit_question", {
                     roomId: room.id,
                     text: questionText,
                   });
@@ -731,7 +747,7 @@ function AttendeeView({ room, user, onExit }) {
 
             <Button
               variant="ghost"
-              onClick={() => socket.emit("leave_queue", room.id)}
+              onClick={() => socketRef.current.emit("leave_queue", room.id)}
             >
               Leave Queue
             </Button>
@@ -748,7 +764,7 @@ function AttendeeView({ room, user, onExit }) {
             <Button
               size="lg"
               onClick={() =>
-                socket.emit("join_queue", { roomId: room.id, user })
+                socketRef.current.emit("join_queue", { roomId: room.id, user })
               }
               className="w-full mb-8 py-6"
             >
@@ -762,7 +778,7 @@ function AttendeeView({ room, user, onExit }) {
                   <button
                     key={e}
                     onClick={() =>
-                      socket.emit("send_reaction", {
+                      socketRef.current.emit("send_reaction", {
                         roomId: room.id,
                         emoji: e,
                       })
@@ -1149,49 +1165,52 @@ function App() {
   const [view, setView] = useState("landing");
   const [room, setRoom] = useState(null);
   const [attendeeUser, setAttendeeUser] = useState({ name: "" });
-  const [connected, setConnected] = useState(socket.connected);
+  const [connected, setConnected] = useState(socketRef.current.connected);
 
   useEffect(() => {
-    socket.on("connect", () => setConnected(true));
-    socket.on("disconnect", () => setConnected(false));
+    socketRef.current.on("connect", () => setConnected(true));
+    socketRef.current.on("disconnect", () => setConnected(false));
 
-    socket.on("event_created", (r) => {
+    socketRef.current.on("event_created", (r) => {
       setRoom(r);
       setView("host");
     });
 
-    socket.on("room_data", setRoom);
+    socketRef.current.on("room_data", setRoom);
 
-    socket.on("event_ended", () => {
+    socketRef.current.on("event_ended", () => {
       alert("Event ended");
       setView("landing");
       setRoom(null);
     });
 
-    socket.on("error", alert);
+    socketRef.current.on("error", alert);
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("room")) setView("join");
 
     return () => {
-      socket.off("connect");
-      socket.off("disconnect");
-      socket.off("event_created");
-      socket.off("room_data");
-      socket.off("event_ended");
-      socket.off("error");
+      socketRef.current.off("connect");
+      socketRef.current.off("disconnect");
+      socketRef.current.off("event_created");
+      socketRef.current.off("room_data");
+      socketRef.current.off("event_ended");
+      socketRef.current.off("error");
     };
   }, []);
 
   const createEvent = (data) => {
-    if (connected) socket.emit("create_event", data);
+    if (connected) socketRef.current.emit("create_event", data);
     else alert("Not connected");
   };
 
   const joinEvent = (code, user) => {
     if (!connected) return alert("Not connected");
     setAttendeeUser(user);
-    socket.emit("join_room_attendee", { roomId: code.toUpperCase(), user });
+    socketRef.current.emit("join_room_attendee", {
+      roomId: code.toUpperCase(),
+      user,
+    });
     setView("attendee");
   };
 
