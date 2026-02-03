@@ -37,16 +37,7 @@ const BACKEND = import.meta.env.VITE_BACKEND_URL;
 
 // const socketRef = useRef(null);
 
-useEffect(() => {
-  socketRef.current = io(import.meta.env.VITE_BACKEND_URL, {
-    transports: ["websocket"],
-    reconnection: true,
-  });
-
-  return () => {
-    socketRef.current?.disconnect();
-  };
-}, []);
+const socketRef = { current: null };
 
 const RTC_CONFIG = {
   iceServers: [
@@ -1162,10 +1153,23 @@ function JoinPage({ onBack, onJoin, connected }) {
 // ═══════════════════════════════════════════════════════════════
 
 function App() {
+  useEffect(() => {
+    if (!socketRef.current) {
+      socketRef.current = io(BACKEND, {
+        transports: ["websocket", "polling"],
+        reconnection: true,
+      });
+    }
+    return () => {
+      socketRef.current?.disconnect();
+      socketRef.current = null;
+    };
+  }, []);
+
   const [view, setView] = useState("landing");
   const [room, setRoom] = useState(null);
   const [attendeeUser, setAttendeeUser] = useState({ name: "" });
-  const [connected, setConnected] = useState(socketRef.current.connected);
+  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
     socketRef.current.on("connect", () => setConnected(true));
