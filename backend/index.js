@@ -2,6 +2,7 @@
  * SpeakApp API Server v1.0 - Production Ready
  * For deployment on Kali Linux / Debian / Ubuntu
  */
+require("dotenv").config();
 
 const express = require('express');
 const { createServer } = require('http');
@@ -36,12 +37,9 @@ const config = {
 // ═══════════════════════════════════════════════════════════════
 
 const pool = new Pool({
-  host: config.db.host,
-  port: config.db.port,
-  user: config.db.user,
-  password: config.db.password,
-  database: config.db.database,
-  max: 20
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+  max: 20,
 });
 
 async function initDatabase() {
@@ -104,14 +102,16 @@ const server = createServer(app);
 
 // CORS configuration - allow both production and dev server
 const corsOptions = {
-  origin: "*",
+  origin: (process.env.CORS_ORIGIN || "").split(",").map(s => s.trim()).filter(Boolean),
+  credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 };
 
+app.use(cors(corsOptions));
+
 const io = new Server(server, {
   cors: corsOptions,
-  origin: "https://speakappv2.onrender.com",
-  transports: ['websocket', 'polling'],
+  transports: ["websocket", "polling"],
 });
 
 app.use(cors(corsOptions));
@@ -450,8 +450,8 @@ async function start() {
     console.error("⚠️ DB init failed, starting server anyway:", err.message);
   }
 
-  server.listen(config.port, config.host, () => {
-    console.log(`Server listening on ${config.host}:${config.port}`);
+  server.listen(process.env.PORT || 3001, "0.0.0.0", () => {
+    console.log(`Server listening on 0.0.0.0:${process.env.PORT || 3001}`);
   });
 }
 
