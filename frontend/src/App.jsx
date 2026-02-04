@@ -33,9 +33,7 @@ import {
 // CONFIG - backend URL
 // ═══════════════════════════════════════════════════════════════
 
-const BACKEND =
-  (import.meta.env.VITE_BACKEND_URL || "").replace(/\/$/, "") ||
-  "http://localhost:3001";
+const BACKEND = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
 
 const socket = io(BACKEND, {
   transports: ["websocket", "polling"],
