@@ -1,8 +1,7 @@
 /**
  * SpeakApp API Server v1.0 - Production Ready
- * For deployment on Kali Linux / Debian / Ubuntu
+ * For deployment on Kali Linux / Debian / Ubuntu / Windows
  */
-require("dotenv").config();
 
 const express = require('express');
 const { createServer } = require('http');
@@ -13,6 +12,8 @@ const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs');
+
+require("dotenv").config();
 
 // ═══════════════════════════════════════════════════════════════
 // CONFIGURATION (from environment or defaults)
@@ -25,8 +26,8 @@ const config = {
   db: {
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT) || 5432,
-    user: process.env.DB_USER || 'speakapp',
-    password: process.env.DB_PASSWORD || 'speakapp123',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
     database: process.env.DB_NAME || 'speakapp'
   },
   frontendPath: process.env.FRONTEND_PATH || path.join(__dirname, '../frontend/dist')
@@ -36,10 +37,18 @@ const config = {
 // DATABASE CONNECTION
 // ═══════════════════════════════════════════════════════════════
 
+// Database connection with proper SSL handling for local development
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
-  max: 20,
+  ssl: process.env.NODE_ENV === 'production' && process.env.DATABASE_URL?.includes("render.com")
+    ? { rejectUnauthorized: false }
+    : false,
+  // Fallback to individual config if DATABASE_URL is not set
+  host: !process.env.DATABASE_URL ? config.db.host : undefined,
+  port: !process.env.DATABASE_URL ? config.db.port : undefined,
+  user: !process.env.DATABASE_URL ? config.db.user : undefined,
+  password: !process.env.DATABASE_URL ? config.db.password : undefined,
+  database: !process.env.DATABASE_URL ? config.db.database : undefined,
 });
 
 async function initDatabase() {
@@ -138,7 +147,7 @@ const roomData = room => room ? {
   id: room.id,
   name: room.name,
   hostName: room.hostName,
-  hostSocketId: room.hostSocketId, // ✅ add this
+  hostSocketId: room.hostSocketId,
   queue: room.queue,
   currentSpeaker: room.currentSpeaker,
   attendeeCount: room.attendees.size,
@@ -384,7 +393,7 @@ io.on('connection', socket => {
     const room = getRoom(roomId);
     if (!room) return;
 
-    // ✅ if attendee sends ICE without "to", forward only to host
+    // if attendee sends ICE without "to", forward only to host
     io.to(room.hostSocketId).emit("webrtc_ice", { from: socket.id, candidate });
   });
 
@@ -451,10 +460,9 @@ async function start() {
   }
 
   server.listen(process.env.PORT || 3001, "0.0.0.0", () => {
-    console.log(`Server listening on 0.0.0.0:${process.env.PORT || 3001}`);
+    console.log(`🚀 Server listening on 0.0.0.0:${process.env.PORT || 3001}`);
   });
 }
-
 
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down...');
@@ -469,6 +477,5 @@ process.on('SIGINT', () => {
     pool.end(() => process.exit(0));
   });
 });
-
 
 start();
