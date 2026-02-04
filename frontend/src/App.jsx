@@ -34,6 +34,7 @@ import {
 // ═══════════════════════════════════════════════════════════════
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
+const socketRef = { current: null };
 
 const socket = io(BACKEND, {
   transports: ["websocket", "polling"],

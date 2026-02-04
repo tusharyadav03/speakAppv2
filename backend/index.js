@@ -110,10 +110,11 @@ app.set('trust proxy', 1);
 const server = createServer(app);
 
 // CORS configuration - allow both production and dev server
+const corsOrigin = process.env.CORS_ORIGIN || "https://speakappv2.onrender.com";
+
 const corsOptions = {
-  origin: (process.env.CORS_ORIGIN || "").split(",").map(s => s.trim()).filter(Boolean),
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  origin: corsOrigin,
+  methods: ["GET", "POST"],
 };
 
 app.use(cors(corsOptions));
