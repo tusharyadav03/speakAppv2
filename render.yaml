@@ -1,0 +1,28 @@
+services:
+  # Backend API Service
+  - type: web
+    name: speakapp-backend
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: speakapp-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        value: https://speakappv2.onrender.com
+      - key: PORT
+        value: 3001
+
+databases:
+  - name: speakapp-db
+    databaseName: speakapp_db
+    user: speakapp_db_user
+    plan: free
