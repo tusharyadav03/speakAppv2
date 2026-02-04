@@ -4,13 +4,25 @@
 
 You have these variables set correctly:
 
-- ✅ CORS_ORIGIN: `https://speakappv2.onrender.com`
+- ⚠️ CORS_ORIGIN: `https://speakappv2.onrender.com` (needs update - see below)
 - ✅ DB_HOST: `dpg-d60rh1nfte5873bd8fpg-a`
 - ✅ DB_NAME: `speakapp_db`
 - ✅ DB_PASSWORD: `w7aqpJH1qIoJxyWJTTDDun1wKNpxavxJ`
 - ✅ DB_PORT: `5432`
 - ✅ DB_USER: `speakapp_db_user`
 - ✅ JWT_SECRET: `a8f5f167f44f4964e6c998dee827110c`
+
+## ⚠️ ACTION REQUIRED - Update and Add Variables:
+
+### 0. UPDATE CORS_ORIGIN (IMPORTANT!)
+
+**Edit the existing CORS_ORIGIN variable:**
+
+**Key:** `CORS_ORIGIN`
+
+**New Value:** `https://speakappv2.onrender.com`
+
+**Note:** Remove any trailing slashes. The backend serves both API and frontend from the same domain.
 
 ## ⚠️ MISSING - Add These Two Variables:
 
