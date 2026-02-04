@@ -119,9 +119,13 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+
+
 const io = new Server(server, {
-  cors: corsOptions,
-  transports: ["websocket", "polling"],
+  cors: {
+    origin: "https://speakappv2.onrender.com",
+    methods: ["GET", "POST"],
+  },
 });
 
 app.use(cors(corsOptions));
@@ -458,8 +462,8 @@ async function start() {
     console.error("⚠️ DB init failed, starting server anyway:", err.message);
   }
 
-  server.listen(process.env.PORT || 3001, "0.0.0.0", () => {
-    console.log(`🚀 Server listening on 0.0.0.0:${process.env.PORT || 3001}`);
+  server.listen(process.env.PORT || 10000, () => {
+    console.log("Server running");
   });
 }
 

@@ -36,9 +36,8 @@ import {
 const BACKEND = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
 const socketRef = { current: null };
 
-const socket = io(BACKEND, {
-  transports: ["websocket", "polling"],
-  reconnection: true,
+const socket = io(import.meta.env.VITE_API_URL, {
+  transports: ["websocket"],
 });
 
 const RTC_CONFIG = {
@@ -1153,6 +1152,21 @@ function App() {
   const [room, setRoom] = useState(null);
   const [attendeeUser, setAttendeeUser] = useState({ name: "" });
   const [connected, setConnected] = useState(socket.connected);
+  const [status, setStatus] = useState("OFFLINE");
+
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL}/health`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Backend not reachable");
+        return res.json();
+      })
+      .then(() => {
+        setStatus("ONLINE");
+      })
+      .catch(() => {
+        setStatus("OFFLINE");
+      });
+  }, []);
 
   useEffect(() => {
     const onConnect = () => setConnected(true);
