@@ -160,13 +160,11 @@ const roomData = room => room ? {
 // ═══════════════════════════════════════════════════════════════
 
 // Health check
-app.get('/api/health', async (req, res) => {
-  try {
-    await pool.query('SELECT 1');
-    res.json({ status: 'ok', db: 'connected', rooms: rooms.size });
-  } catch (e) {
-    res.status(500).json({ status: 'error', message: e.message });
-  }
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "online",
+    time: new Date().toISOString(),
+  });
 });
 
 app.get('/api', (req, res) => res.json({ app: 'SpeakApp', version: '1.0' }));
