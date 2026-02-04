@@ -121,20 +121,26 @@ Password: admin123
 
 ## Project Structure
 
-```
-speakapp-prod/
-├── backend/
-│   ├── index.js          # Express server & Socket.IO
-│   ├── package.json
-│   └── .env             # Backend configuration
-├── frontend/
-│   ├── src/
-│   │   ├── App.jsx      # Main React component
-│   │   ├── main.jsx     # Entry point
-│   │   └── styles/
-│   ├── package.json
-│   └── .env             # Frontend configuration
-└── README.md
+````
+├── 📁 backend
+│   ├── 📄 index.js
+│   ├── ⚙️ package-lock.json
+│   └── ⚙️ package.json
+├── 📁 frontend
+│   ├── 📁 src
+│   │   ├── 📁 styles
+│   │   │   └── 🎨 index.css
+│   │   ├── 📄 App.jsx
+│   │   └── 📄 main.jsx
+│   ├── 🌐 index.html
+│   ├── ⚙️ package-lock.json
+│   ├── ⚙️ package.json
+│   ├── 📄 postcss.config.js
+│   ├── 📄 tailwind.config.js
+│   └── 📄 vite.config.js
+├── ⚙️ .gitignore
+├── 📝 README.md
+└── ⚙️ package-lock.json
 ```
 
 ## Tech Stack
@@ -151,7 +157,7 @@ speakapp-prod/
 ```bash
 cd backend
 npm run dev    # Runs with nodemon for auto-reload
-```
+````
 
 ### Frontend Development
 
